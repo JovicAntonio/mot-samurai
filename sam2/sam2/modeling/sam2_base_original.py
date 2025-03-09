@@ -448,12 +448,7 @@ class SAM2Base(torch.nn.Module):
                     y_min, x_min = non_zero_indices.min(dim=0).values
                     y_max, x_max = non_zero_indices.max(dim=0).values
                     high_res_bbox = [x_min.item(), y_min.item(), x_max.item(), y_max.item()]
-                if ious[0][best_iou_inds].numel() > 1:
-                    best_iou = ious[0][best_iou_inds].max()  # Take the max IoU if multiple exist
-                else:
-                    best_iou = ious[0][best_iou_inds]
-
-                if best_iou > self.stable_ious_threshold:
+                if ious[0][best_iou_inds] > self.stable_ious_threshold:
                     self.kf_mean, self.kf_covariance = self.kf.update(self.kf_mean, self.kf_covariance, self.kf.xyxy_to_xyah(high_res_bbox))
                     self.stable_frames += 1
                 else:
@@ -497,16 +492,9 @@ class SAM2Base(torch.nn.Module):
                     }
                 self.frame_cnt += 1
 
-                if ious[0][best_iou_inds].numel() > 1:
-                    best_iou_value = ious[0][best_iou_inds].max()
-                else:
-                    best_iou_value = ious[0][best_iou_inds]
-
-                if best_iou_value < self.stable_ious_threshold:
+                if ious[0][best_iou_inds] < self.stable_ious_threshold:
                     self.stable_frames = 0
                 else:
-                    if best_iou_inds.numel() > 1:
-                        best_iou_inds = best_iou_inds[0]  # Select the first index
                     self.kf_mean, self.kf_covariance = self.kf.update(self.kf_mean, self.kf_covariance, self.kf.xyxy_to_xyah(high_res_multibboxes[best_iou_inds]))
         elif multimask_output and not self.samurai_mode:
             # take the best mask prediction (with the highest IoU estimation)
@@ -679,16 +667,6 @@ class SAM2Base(torch.nn.Module):
                         iou_score = output_dict["non_cond_frame_outputs"][i]["best_iou_score"]  # Get mask affinity score
                         obj_score = output_dict["non_cond_frame_outputs"][i]["object_score_logits"]  # Get object score
                         kf_score = output_dict["non_cond_frame_outputs"][i]["kf_score"] if "kf_score" in output_dict["non_cond_frame_outputs"][i] else None  # Get motion score if available
-                        
-                        if iou_score.numel() > 1:
-                            iou_score = iou_score.max()  # Extract the maximum IoU score
-                        
-                        if obj_score.numel() > 1:
-                            obj_score = obj_score.max()
-
-                        if kf_score is not None and kf_score.numel() > 1:
-                            kf_score = kf_score.max()
-
                         # Check if the scores meet the criteria for being a valid index
                         if iou_score.item() > self.memory_bank_iou_threshold and \
                            obj_score.item() > self.memory_bank_obj_score_threshold and \
